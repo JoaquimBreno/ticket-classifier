@@ -4,7 +4,9 @@ from typing import Literal
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
+import config
 from .state import PipelineState
+from src.logging_utils import log_knn_classification
 from src.rag import Embedder, VectorStore
 from src.classification import KNNClassifier, LLMClassifier
 from src.justification.generator import generate_justification_text
@@ -57,10 +59,19 @@ def _llm_classify(state: PipelineState, llm: LLMClassifier) -> PipelineState:
     }
 
 
-def _justify(state: PipelineState) -> PipelineState:
+def _justify(state: PipelineState, vector_store: VectorStore, k: int) -> PipelineState:
+    if state.get("used_llm_for_class") is False:
+        log_knn_classification(state.get("confidence", 0.0))
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
     classe = state.get("classe") or ""
-    justificativa = generate_justification_text(ticket_text=text, classe=classe)
+    confidence = state.get("confidence")
+    neighbors = vector_store.search(text, k=k) if text else []
+    justificativa = generate_justification_text(
+        ticket_text=text,
+        classe=classe,
+        confidence=confidence,
+        neighbors=neighbors,
+    )
     return {**state, "justificativa": justificativa}
 
 
@@ -68,7 +79,6 @@ def _route_after_knn(state: PipelineState) -> Literal["generate_justification", 
     if state.get("used_llm_for_class") is True:
         return "generate_justification"
     conf = state.get("confidence", 0.0)
-    import config
     if conf >= config.KNN_CONFIDENCE_THRESHOLD:
         return "generate_justification"
     return "llm_classify"
@@ -92,7 +102,10 @@ def build_pipeline(
     builder.add_node("embed", lambda s: _embed(s, embedder))
     builder.add_node("knn_classify", lambda s: _knn_classify(s, knn))
     builder.add_node("llm_classify", lambda s: _llm_classify(s, llm))
-    builder.add_node("generate_justification", _justify)
+    builder.add_node(
+        "generate_justification",
+        lambda s: _justify(s, vector_store, k=config.KNN_K),
+    )
     builder.add_node("log_and_return", _log_and_return)
 
     builder.set_entry_point("preprocess")

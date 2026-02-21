@@ -40,15 +40,15 @@ cp .env.example .env
 
 Edite `.env` e defina:
 
-- `OPENROUTER_API_KEY` — chave em [openrouter.ai/keys](https://openrouter.ai/keys) (usada para classificação LLM e justificativa)
+- `KAGGLE_API_TOKEN` — token da API do Kaggle (usado pelo [kagglehub](https://github.com/Kaggle/kagglehub) para baixar o dataset). Obtenha em [Kaggle – Settings – API](https://www.kaggle.com/settings), clique em "Generate New Token" e copie o valor para o `.env`.
+- `OPENROUTER_API_KEY` — chave em [openrouter.ai/keys](https://openrouter.ai/keys) (usada para classificação LLM e justificativa).
 
 Opcionais: `LABEL_COLUMN`, `TEXT_COLUMNS`, `KNN_K`, `KNN_CONFIDENCE_THRESHOLD`, `SAMPLE_SIZE`, `OPENROUTER_MODEL`, `EMBEDDING_MODEL`.
 
-3. Baixe o dataset do Kaggle (obrigatório):
+1. Baixe o dataset do Kaggle (obrigatório):
 
    - Crie uma conta em [Kaggle](https://www.kaggle.com) e aceite as regras do dataset [IT Service Ticket Classification](https://www.kaggle.com/datasets/adisongoh/it-service-ticket-classification-dataset).
-   - Configure a API: em [Kaggle – Account – API](https://www.kaggle.com/settings) clique em "Create New Token" e salve o arquivo `kaggle.json` em `~/.kaggle/` (Linux/macOS) ou `C:\Users\<user>\.kaggle\` (Windows).
-   - No terminal, com o ambiente ativado, baixe o dataset:
+   - Com `KAGGLE_API_TOKEN` já definido no `.env`, no terminal (ambiente ativado) rode:
 
 ```bash
 conda activate ticket-classifier

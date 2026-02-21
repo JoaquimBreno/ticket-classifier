@@ -2,6 +2,7 @@ import os
 from openai import OpenAI
 
 import config
+from src.logging_utils import log_llm_usage
 
 
 def get_openrouter_client() -> OpenAI:
@@ -46,6 +47,13 @@ Reply with only the class name, nothing else."""
             messages=[{"role": "user", "content": prompt}],
             max_tokens=50,
         )
+        if resp.usage:
+            log_llm_usage(
+                source="classification",
+                model=self.model,
+                input_tokens=resp.usage.prompt_tokens,
+                output_tokens=resp.usage.completion_tokens,
+            )
         raw = (resp.choices[0].message.content or "").strip()
         for c in classes:
             if c.lower() in raw.lower() or raw.lower() == c.lower():

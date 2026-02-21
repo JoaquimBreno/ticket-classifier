@@ -1,5 +1,5 @@
 .env
-.kaggle/
 *.csv
 .cursor/
+.vscode/
 __pycache__/
