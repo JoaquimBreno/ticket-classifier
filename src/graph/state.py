@@ -10,3 +10,5 @@ class PipelineState(TypedDict, total=False):
     justificativa: str
     used_llm_for_class: bool
     classes: list[str]
+    classification_tokens: int
+    justification_tokens: int

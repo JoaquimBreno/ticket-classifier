@@ -20,6 +20,3 @@ class KNNClassifier:
         majority_label, count = counts.most_common(1)[0]
         confidence = count / len(labels)
         return majority_label, float(confidence)
-
-    def use_knn(self, confidence: float) -> bool:
-        return confidence >= self.confidence_threshold

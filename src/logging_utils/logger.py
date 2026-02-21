@@ -18,40 +18,67 @@ def get_usage_logger() -> logging.Logger:
     return logger
 
 
-def log_llm_usage(
-    source: str,
+def log_classification(
+    classifier: str,
+    classe: str,
+    confidence: float | None = None,
+    model: str | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    total_tokens: int | None = None,
+) -> None:
+    payload: dict = {
+        "event": "classification",
+        "classifier": classifier,
+        "classe": classe,
+    }
+    if confidence is not None:
+        payload["confidence"] = round(confidence, 4)
+    if model is not None:
+        payload["model"] = model
+    if input_tokens is not None:
+        payload["input_tokens"] = input_tokens
+    if output_tokens is not None:
+        payload["output_tokens"] = output_tokens
+    if total_tokens is not None:
+        payload["total_tokens"] = total_tokens
+    get_usage_logger().info("%s", json.dumps(payload, ensure_ascii=False))
+
+
+def log_justification(
     model: str,
     input_tokens: int,
     output_tokens: int,
     total_tokens: int | None = None,
-    requests: int = 1,
-    **extra: str | int | float,
 ) -> None:
     total = total_tokens if total_tokens is not None else input_tokens + output_tokens
     payload = {
-        "event": "llm_usage",
-        "source": source,
+        "event": "justification",
         "model": model,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "total_tokens": total,
-        "requests": requests,
-        **{k: v for k, v in extra.items() if v is not None},
     }
     get_usage_logger().info("%s", json.dumps(payload, ensure_ascii=False))
 
 
-def log_knn_classification(confidence: float) -> None:
-    payload = {
-        "event": "llm_usage",
-        "source": "knn",
-        "model": "n/a",
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "total_tokens": 0,
-        "requests": 0,
-        "confidence": round(confidence, 4),
+def log_inference(
+    classification_source: str,
+    classe: str,
+    inference_time_sec: float,
+    classification_tokens: int | None = None,
+    justification_tokens: int | None = None,
+) -> None:
+    payload: dict = {
+        "event": "inference",
+        "classification_source": classification_source,
+        "classe": classe,
+        "inference_time_sec": round(inference_time_sec, 4),
     }
+    if classification_tokens is not None:
+        payload["classification_tokens"] = classification_tokens
+    if justification_tokens is not None:
+        payload["justification_tokens"] = justification_tokens
     get_usage_logger().info("%s", json.dumps(payload, ensure_ascii=False))
 
 

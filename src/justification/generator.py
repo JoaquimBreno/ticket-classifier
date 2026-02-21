@@ -11,7 +11,6 @@ from pydantic_ai.exceptions import ModelHTTPError, ToolRetryError, UnexpectedMod
 import nest_asyncio
 
 import config
-from src.logging_utils import log_llm_usage
 
 nest_asyncio.apply()
 
@@ -95,7 +94,7 @@ def generate_justification_text(
     confidence: float | None = None,
     neighbors: list[tuple[str, str, float]] | None = None,
     max_retries: int = 2,
-) -> str:
+) -> tuple[str, dict | None]:
     agent = _get_agent()
     prompt_parts = [
         f"Texto do ticket:\n{ticket_text[:2000]}\n\nClasse atribuída: {classe}.",
@@ -121,26 +120,24 @@ def generate_justification_text(
                 model_settings={"max_tokens": config.JUSTIFICATION_MAX_TOKENS},
             )
             u = result.usage()
-            log_llm_usage(
-                source="justification",
-                model=config.OPENROUTER_MODEL,
-                input_tokens=u.input_tokens,
-                output_tokens=u.output_tokens,
-                total_tokens=u.total_tokens,
-                requests=getattr(u, "requests", 1),
-            )
+            usage_info = {
+                "input_tokens": u.input_tokens,
+                "output_tokens": u.output_tokens,
+                "total_tokens": getattr(u, "total_tokens", None)
+                or u.input_tokens + u.output_tokens,
+            }
             out = result.output
             if isinstance(out, ClassificationOutput):
-                return out.justificativa or ""
+                return (out.justificativa or "", usage_info)
             if isinstance(out, dict):
-                return out.get("justificativa", "") or ""
-            return str(out) if out else ""
+                return (out.get("justificativa", "") or "", usage_info)
+            return (str(out) if out else "", usage_info)
         except (UnexpectedModelBehavior, ToolRetryError):
-            return ""
+            return ("", None)
         except ModelHTTPError as e:
             last_exc = e
             if getattr(e, "status_code", None) == 402:
-                return ""
+                return ("", None)
             if getattr(e, "status_code", None) == 429 and attempt < max_retries:
                 wait = _wait_for_rate_limit(getattr(e, "body", None))
                 time.sleep(wait)
@@ -149,7 +146,7 @@ def generate_justification_text(
         except Exception as e:
             last_exc = e
             if "402" in str(e) or "insufficient credits" in str(e).lower():
-                return ""
+                return ("", None)
             if "429" in str(e) or "rate limit" in str(e).lower():
                 if attempt < max_retries:
                     time.sleep(_wait_for_rate_limit(None))
@@ -157,4 +154,4 @@ def generate_justification_text(
             raise
     if last_exc:
         raise last_exc
-    return ""
+    return ("", None)

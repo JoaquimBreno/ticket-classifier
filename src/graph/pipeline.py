@@ -1,4 +1,5 @@
 import re
+import time
 from typing import Literal
 
 from langgraph.graph import StateGraph, END
@@ -6,7 +7,7 @@ from langgraph.checkpoint.memory import MemorySaver
 
 import config
 from .state import PipelineState
-from src.logging_utils import log_knn_classification
+from src.logging_utils import log_classification, log_inference, log_justification
 from src.rag import Embedder, VectorStore
 from src.classification import KNNClassifier, LLMClassifier
 from src.justification.generator import generate_justification_text
@@ -37,6 +38,7 @@ def _embed(state: PipelineState, embedder: Embedder) -> PipelineState:
 def _knn_classify(state: PipelineState, knn: KNNClassifier) -> PipelineState:
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
     classe, confidence = knn.predict(text)
+    log_classification(classifier="knn", classe=classe, confidence=confidence)
     return {
         **state,
         "classe": classe,
@@ -50,9 +52,24 @@ def _llm_classify(state: PipelineState, llm: LLMClassifier) -> PipelineState:
     classes = state.get("classes") or []
     if not classes:
         return {**state, "used_llm_for_class": True}
-    classe = llm.predict(text, classes)
+    classe, usage_info = llm.predict(text, classes)
+    if usage_info:
+        log_classification(
+            classifier="llm",
+            classe=classe,
+            model=llm.model,
+            input_tokens=usage_info["input_tokens"],
+            output_tokens=usage_info["output_tokens"],
+            total_tokens=usage_info.get("total_tokens"),
+        )
+        total = usage_info.get("total_tokens")
+        state_extra = {"classification_tokens": total} if total is not None else {}
+    else:
+        log_classification(classifier="llm", classe=classe, model=llm.model)
+        state_extra = {}
     return {
         **state,
+        **state_extra,
         "classe": classe,
         "confidence": 0.0,
         "used_llm_for_class": True,
@@ -60,19 +77,28 @@ def _llm_classify(state: PipelineState, llm: LLMClassifier) -> PipelineState:
 
 
 def _justify(state: PipelineState, vector_store: VectorStore, k: int) -> PipelineState:
-    if state.get("used_llm_for_class") is False:
-        log_knn_classification(state.get("confidence", 0.0))
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
     classe = state.get("classe") or ""
     confidence = state.get("confidence")
     neighbors = vector_store.search(text, k=k) if text else []
-    justificativa = generate_justification_text(
+    justificativa, usage_info = generate_justification_text(
         ticket_text=text,
         classe=classe,
         confidence=confidence,
         neighbors=neighbors,
     )
-    return {**state, "justificativa": justificativa}
+    if usage_info:
+        log_justification(
+            model=config.OPENROUTER_MODEL,
+            input_tokens=usage_info["input_tokens"],
+            output_tokens=usage_info["output_tokens"],
+            total_tokens=usage_info.get("total_tokens"),
+        )
+        total = usage_info.get("total_tokens")
+        state_extra = {"justification_tokens": total} if total is not None else {}
+    else:
+        state_extra = {}
+    return {**state, "justificativa": justificativa, **state_extra}
 
 
 def _route_after_knn(state: PipelineState) -> Literal["generate_justification", "llm_classify"]:
@@ -130,12 +156,24 @@ def run_pipeline(compiled, ticket_text: str, classes: list[str], *, thread_id: s
         "ticket_text": ticket_text,
         "classes": classes,
     }
+    t0 = time.perf_counter()
     final = compiled.invoke(initial, run_config)
+    inference_time_sec = time.perf_counter() - t0
     if isinstance(final, dict):
         values = final
     else:
         values = getattr(final, "values", dict(final))
+    classification_source = "llm" if values.get("used_llm_for_class") else "knn"
+    log_inference(
+        classification_source=classification_source,
+        classe=values.get("classe", ""),
+        inference_time_sec=inference_time_sec,
+        classification_tokens=values.get("classification_tokens"),
+        justification_tokens=values.get("justification_tokens"),
+    )
     return {
         "classe": values.get("classe", ""),
         "justificativa": values.get("justificativa", ""),
+        "classification_source": classification_source,
+        "inference_time_sec": inference_time_sec,
     }

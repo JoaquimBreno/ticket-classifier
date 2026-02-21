@@ -2,7 +2,6 @@ import os
 from openai import OpenAI
 
 import config
-from src.logging_utils import log_llm_usage
 
 
 def get_openrouter_client() -> OpenAI:
@@ -27,7 +26,7 @@ class LLMClassifier:
             self._client = get_openrouter_client()
         return self._client
 
-    def predict(self, text: str, classes: list[str]) -> str:
+    def predict(self, text: str, classes: list[str]) -> tuple[str, dict | None]:
         examples = self.store.search(text, k=3)
         examples_str = "\n".join(
             f"- Ticket: {t[:200]}... -> {label}" for label, t, _ in examples
@@ -47,15 +46,16 @@ Reply with only the class name, nothing else."""
             messages=[{"role": "user", "content": prompt}],
             max_tokens=50,
         )
+        usage_info: dict | None = None
         if resp.usage:
-            log_llm_usage(
-                source="classification",
-                model=self.model,
-                input_tokens=resp.usage.prompt_tokens,
-                output_tokens=resp.usage.completion_tokens,
-            )
+            usage_info = {
+                "input_tokens": resp.usage.prompt_tokens,
+                "output_tokens": resp.usage.completion_tokens,
+                "total_tokens": getattr(resp.usage, "total_tokens", None)
+                or resp.usage.prompt_tokens + resp.usage.completion_tokens,
+            }
         raw = (resp.choices[0].message.content or "").strip()
         for c in classes:
             if c.lower() in raw.lower() or raw.lower() == c.lower():
-                return c
-        return classes[0] if classes else raw or "Unknown"
+                return c, usage_info
+        return (classes[0] if classes else raw or "Unknown", usage_info)

@@ -1,3 +1,13 @@
-from .logger import log_knn_classification, log_llm_usage, log_result
+from .logger import (
+    log_classification,
+    log_inference,
+    log_justification,
+    log_result,
+)
 
-__all__ = ["log_knn_classification", "log_llm_usage", "log_result"]
+__all__ = [
+    "log_classification",
+    "log_inference",
+    "log_justification",
+    "log_result",
+]
