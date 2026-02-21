@@ -13,7 +13,7 @@ Fluxo de automação que, dado o texto de um ticket, retorna a **classe** e uma 
 ## Requisitos
 
 - Python 3.10+
-- Dataset: [Kaggle – IT Service Ticket Classification](https://www.kaggle.com/datasets/aniketg11/supportticketsclassification) (obrigatório; deve ser baixado via API do Kaggle)
+- Dataset: [Kaggle – IT Service Ticket Classification](https://www.kaggle.com/datasets/adisongoh/it-service-ticket-classification-dataset) (obrigatório; deve ser baixado via kagglehub/API do Kaggle)
 
 ## Setup
 
@@ -46,7 +46,7 @@ Opcionais: `LABEL_COLUMN`, `TEXT_COLUMNS`, `KNN_K`, `KNN_CONFIDENCE_THRESHOLD`, 
 
 3. Baixe o dataset do Kaggle (obrigatório):
 
-   - Crie uma conta em [Kaggle](https://www.kaggle.com) e aceite as regras do dataset [Support-tickets-classification](https://www.kaggle.com/datasets/aniketg11/supportticketsclassification).
+   - Crie uma conta em [Kaggle](https://www.kaggle.com) e aceite as regras do dataset [IT Service Ticket Classification](https://www.kaggle.com/datasets/adisongoh/it-service-ticket-classification-dataset).
    - Configure a API: em [Kaggle – Account – API](https://www.kaggle.com/settings) clique em "Create New Token" e salve o arquivo `kaggle.json` em `~/.kaggle/` (Linux/macOS) ou `C:\Users\<user>\.kaggle\` (Windows).
    - No terminal, com o ambiente ativado, baixe o dataset:
 
@@ -105,6 +105,3 @@ ticket-classifier/
 - Seed fixo em `config.SEED` (42); usado na amostragem e, quando aplicável, em modelos.
 - Amostra de 200 (ou menor se a base for menor) salva em `data/processed/sample_200.csv`.
 
-## Licença
-
-Uso conforme processo seletivo DHAUZ.
