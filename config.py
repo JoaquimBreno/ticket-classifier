@@ -25,7 +25,7 @@ LLAMA_N_CTX = int(os.getenv("LLAMA_N_CTX", "4096"))
 LLAMA_N_GPU_LAYERS = int(os.getenv("LLAMA_N_GPU_LAYERS", "-1"))
 LLAMA_HF_REPO = os.getenv("LLAMA_HF_REPO", "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF")
 LLAMA_HF_FILENAME = os.getenv("LLAMA_HF_FILENAME", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")
-JUSTIFICATION_MAX_TOKENS = int(os.getenv("JUSTIFICATION_MAX_TOKENS", "200"))
+JUSTIFICATION_MAX_TOKENS = int(os.getenv("JUSTIFICATION_MAX_TOKENS", "400"))
 LOG_DISPLAY = os.getenv("LOG_DISPLAY", "0") == "1"
 
 CLASSIFICATION_MAX_CHARS = int(os.getenv("CLASSIFICATION_MAX_CHARS", "1000"))

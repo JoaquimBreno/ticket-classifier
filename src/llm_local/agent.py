@@ -48,13 +48,6 @@ class TicketClassification(BaseModel):
     )
 
 
-class ClassificationResponse(BaseModel):
-    classe: str = Field(
-        min_length=1,
-        description="Categoria exata do ticket. Deve ser exatamente uma das classes fornecidas na lista.",
-    )
-
-
 class JustificationResponse(BaseModel):
     justificativa: str = Field(
         min_length=1,
@@ -102,19 +95,6 @@ def _normalize_class(c: str, classes_validas: list[str]) -> str:
         if (valid or "").strip().lower() == cnorm:
             return valid
     return classes_validas[0]
-
-
-def _parse_classification(raw: str, classes_validas: list[str]) -> str:
-    blob = _extract_json(raw)
-    if blob:
-        try:
-            data = json.loads(blob)
-            if isinstance(data, dict) and "classe" in data:
-                out = ClassificationResponse.model_validate(data)
-                return _normalize_class(out.classe, classes_validas)
-        except (json.JSONDecodeError, Exception):
-            pass
-    return classes_validas[0] if classes_validas else ""
 
 
 def _parse_justification(raw: str) -> str:
@@ -171,8 +151,6 @@ def agent_classify_and_justify(
         f"Classifique o ticket abaixo em uma das categorias e justifique em 1-3 frases (PT-BR).\n\n"
         f"Ticket:\n{ticket_text[:config.CLASSIFICATION_MAX_CHARS]}"
     )
-    print(user)
-    print(system)
     
     content, input_tokens, output_tokens = backend.chat_completion(
         messages=[
@@ -186,42 +164,9 @@ def agent_classify_and_justify(
             "schema": TicketClassification.model_json_schema(),
         },
     )
-    print(content)
     classe, justificativa = _parse_classify_and_justify(content, classes_validas)
     
     return classe, justificativa, input_tokens, output_tokens
-
-
-def agent_classifier(
-    texto_ticket: str,
-    classes_validas: list[str],
-    knn_hint: tuple[str, float] | None = None,
-) -> tuple[str, int, int]:
-    backend = get_llm_backend()
-    system = "You are an expert IT analyst. Output only valid JSON with a single key 'classe' whose value is the exact category name. Be objective."
-    hint_line = ""
-    if knn_hint:
-        knn_classe, knn_conf = knn_hint
-        hint_line = f"KNN sugeriu a classe {knn_classe!r} com confiança {knn_conf:.2f} (abaixo do limiar). Use como hint.\n\n"
-    user_content = (
-        f"Classifique o ticket estritamente em uma destas categorias: {classes_validas}.\n\n"
-        f"{hint_line}"
-        f"Ticket:\n{texto_ticket[:config.CLASSIFICATION_MAX_CHARS]}"
-    )
-    content, input_tokens, output_tokens = backend.chat_completion(
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_content},
-        ],
-        temperature=0.1,
-        max_tokens=64,
-        response_format={
-            "type": "json_object",
-            "schema": ClassificationResponse.model_json_schema(),
-        },
-    )
-    classe = _parse_classification(content, classes_validas)
-    return classe, input_tokens, output_tokens
 
 
 def _justify_knn(
@@ -231,24 +176,16 @@ def _justify_knn(
     confidence: float,
     winning_voters: list[tuple[int, float, str]],
 ) -> tuple[str, int, int]:
-    system = "Analista de tickets. Responda em JSON com uma única chave 'justificativa'. Explique em 1-3 frases (PT-BR) por que os vizinhos KNN sustentam a classe. Só a justificativa."
+    system = (
+        "Analista de tickets. Responda em JSON com uma única chave 'justificativa'. "
+        "Em 1-3 frases (PT-BR), indique quais palavras ou expressões do próprio texto do ticket "
+        "estão correlacionadas à classe atribuída e aos vizinhos KNN; cite trechos do ticket e relacione com os vizinhos. Só a justificativa."
+    )
     user = (
         f"Ticket:\n{ticket_text[:config.JUSTIFICATION_MAX_CHARS]}\n\n"
-        f"Classe: {classe}. Confiança KNN: {confidence:.2f}.\n"
-        f"Vizinhos que votaram nessa classe:\n{_format_winning_voters(winning_voters)}\n\n"
-        "Justifique em português."
-    )
-    return _call_justify(backend, user, system)
-
-
-def _justify_llm(
-    backend, ticket_text: str, classe: str, confidence: float | None = None
-) -> tuple[str, int, int]:
-    system = "Analista de tickets. Responda em JSON com uma única chave 'justificativa'. Explique em 1-3 frases (PT-BR) que a confiança do KNN foi baixa, a classificação foi feita pelo LLM, e cite trechos do ticket que indicaram a classe. Só a justificativa."
-    conf_str = f" Confiança KNN (baixa): {confidence:.2f}." if confidence is not None else ""
-    user = (
-        f"Ticket:\n{ticket_text[:config.JUSTIFICATION_MAX_CHARS]}\n\nClasse: {classe}.{conf_str}\n\n"
-        "Justifique: confiança baixa → LLM classificou; cite trechos do texto que indicaram a classe."
+        f"Classe atribuída: {classe}. Confiança KNN: {confidence:.2f}.\n\n"
+        f"Vizinhos KNN que votaram nessa classe:\n{_format_winning_voters(winning_voters)}\n\n"
+        "Quais termos do ticket acima correlacionam com a classe e com os vizinhos? Justifique em português citando o texto."
     )
     return _call_justify(backend, user, system)
 
@@ -273,11 +210,8 @@ def _call_justify(backend, user: str, system: str) -> tuple[str, int, int]:
 def agent_justify(
     ticket_text: str,
     classe: str,
-    confidence: float | None = None,
-    winning_voters: list[tuple[int, float, str]] | None = None,
-    used_llm_for_class: bool = False,
+    confidence: float,
+    winning_voters: list[tuple[int, float, str]],
 ) -> tuple[str, int, int]:
     backend = get_llm_backend()
-    if not used_llm_for_class and winning_voters and confidence is not None:
-        return _justify_knn(backend, ticket_text, classe, confidence, winning_voters)
-    return _justify_llm(backend, ticket_text, classe, confidence=confidence)
+    return _justify_knn(backend, ticket_text, classe, confidence, winning_voters)

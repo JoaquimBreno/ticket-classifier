@@ -87,27 +87,15 @@ def _llm_classify_and_justify(state: PipelineState) -> PipelineState:
 def _justify(state: PipelineState, vector_store: VectorStore, k: int) -> PipelineState:
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
     classe = state.get("classe") or ""
-    confidence = state.get("confidence")
-    used_llm = state.get("used_llm_for_class") is True
-    winning_voters = None
-    if not used_llm:
-        embedding = state.get("embedding")
-        if embedding is not None:
-            neighbors = vector_store.search_by_vector(embedding, k=k)
-        else:
-            neighbors = vector_store.search(text, k=k) if text else []
-        winning_voters = [
-            (i, dist, (txt or "").strip()[:200])
-            for i, (label, txt, dist) in enumerate(neighbors)
-            if label == classe
-        ]
-    justificativa, inp_tok, out_tok = agent_justify(
-        ticket_text=text,
-        classe=classe,
-        confidence=confidence,
-        winning_voters=winning_voters,
-        used_llm_for_class=used_llm,
-    )
+    confidence = state.get("confidence") or 0.0
+    embedding = state.get("embedding")
+    neighbors = vector_store.search_by_vector(embedding, k=k)
+    winning_voters = [
+        (i, dist, (txt or "").strip()[:200])
+        for i, (label, txt, dist) in enumerate(neighbors)
+        if label == classe
+    ]
+    justificativa, inp_tok, out_tok = agent_justify(text, classe, confidence, winning_voters)
     log_justification(
         model="llama-local", input_tokens=inp_tok, output_tokens=out_tok,
         instance_id=state.get("instance_id"),
