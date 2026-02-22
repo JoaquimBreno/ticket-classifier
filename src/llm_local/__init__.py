@@ -1,17 +1,17 @@
 from .agent import (
     TicketClassification,
     JustificativaOnly,
-    get_llm,
-    get_model_path,
     agent_classifier,
     agent_justify,
 )
+from .backend import get_llm_backend
+from .protocol import LLMBackend
 
 __all__ = [
     "TicketClassification",
     "JustificativaOnly",
-    "get_llm",
-    "get_model_path",
     "agent_classifier",
     "agent_justify",
+    "get_llm_backend",
+    "LLMBackend",
 ]

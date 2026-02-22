@@ -1,0 +1,83 @@
+<mxfile host="app.diagrams.net" modified="2025-01-01T00:00:00.000Z" agent="Mozilla/5.0" version="22.1.0" etag="x" type="device">
+  <diagram name="Pipeline" id="pipeline">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="IT Ticket Classifier — Pipeline (LangGraph)" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontStyle=bold;fontSize=14;fontColor=#1a1a2e;" vertex="1">
+          <mxGeometry x="240" y="20" width="320" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="input" value="Entrada&#xa;ticket_text, classes" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4f8;strokeColor=#0e7ea4;fontStyle=bold;" vertex="1">
+          <mxGeometry x="340" y="70" width="120" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="preprocess" value="Preprocess&#xa;_clean_text (regex, 10k chars)" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#d79b00;" vertex="1">
+          <mxGeometry x="340" y="150" width="120" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="embed" value="Embed&#xa;SentenceTransformer → state.embedding" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fe;strokeColor=#1a73e8;" vertex="1">
+          <mxGeometry x="340" y="230" width="120" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="knn" value="KNN Classify&#xa;search_by_vector(embedding) →&#xa;classe, confidence (voto maioria)" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f4ea;strokeColor=#0d652d;" vertex="1">
+          <mxGeometry x="320" y="310" width="160" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="decision" value="confidence&#xa;≥ threshold?" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fce8e6;strokeColor=#c5221f;" vertex="1">
+          <mxGeometry x="335" y="400" width="130" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="justify_knn" value="Justify (KNN)&#xa;_justify_knn&#xa;winning_voters + confidence&#xa;→ explicabilidade vizinhos" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f4ea;strokeColor=#0d652d;" vertex="1">
+          <mxGeometry x="120" y="520" width="160" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="llm_classify" value="LLM Classify&#xa;agent_classifier&#xa;(texto + classes + neighbors)" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8fd;strokeColor=#7c4dff;" vertex="1">
+          <mxGeometry x="520" y="410" width="160" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="justify_llm" value="Justify (LLM)&#xa;_justify_llm&#xa;confiança baixa → LLM classificou&#xa;cite trechos do ticket" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e8fd;strokeColor=#7c4dff;" vertex="1">
+          <mxGeometry x="520" y="510" width="160" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="log_return" value="Log &amp; Return&#xa;classe, justificativa,&#xa;confidence, inference_time" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#616161;" vertex="1">
+          <mxGeometry x="320" y="640" width="160" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="out" value="Saída" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f4f8;strokeColor=#0e7ea4;fontStyle=bold;" vertex="1">
+          <mxGeometry x="340" y="730" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" parent="1" source="input" target="preprocess" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#0e7ea4;" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" parent="1" source="preprocess" target="embed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#1a73e8;" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" parent="1" source="embed" target="knn" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#0d652d;" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" parent="1" source="knn" target="decision" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#c5221f;" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" parent="1" source="decision" target="justify_knn" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#0d652d;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="l5" value="Sim" parent="1" source="decision" target="justify_knn" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontStyle=italic;" vertex="1" connectable="0">
+          <mxGeometry x="-0.2" y="20" relative="1" as="geometry"><mxGeometry x="15" y="-10" width="30" height="20" as="offset"/></mxGeometry>
+        </mxCell>
+        <mxCell id="e6" parent="1" source="decision" target="llm_classify" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#7c4dff;exitX=0.75;exitY=0.5;entryX=0;entryY=0.5;" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="l6" value="Não" parent="1" source="decision" target="llm_classify" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontStyle=italic;" vertex="1" connectable="0">
+          <mxGeometry x="-0.1" y="1" relative="1" as="geometry"><mxGeometry x="10" width="30" height="20" as="offset"/></mxGeometry>
+        </mxCell>
+        <mxCell id="e7" parent="1" source="llm_classify" target="justify_llm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#7c4dff;" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" parent="1" source="justify_knn" target="log_return" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.25;entryY=0;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="200" y="620"/><mxPoint x="360" y="620"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" parent="1" source="justify_llm" target="log_return" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="600" y="620"/><mxPoint x="440" y="620"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" parent="1" source="log_return" target="out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;endFill=1;strokeWidth=2;strokeColor=#0e7ea4;" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

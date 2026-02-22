@@ -10,9 +10,15 @@ LLM_USAGE_LOGGER = "ticket_classifier.llm_usage"
 def get_usage_logger() -> logging.Logger:
     logger = logging.getLogger(LLM_USAGE_LOGGER)
     if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        logger.addHandler(handler)
+        path = config.OUTPUTS / "usage.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(path, mode="a", encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(file_handler)
+        if getattr(config, "LOG_DISPLAY", False):
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(logging.Formatter("%(message)s"))
+            logger.addHandler(stream_handler)
         logger.setLevel(logging.INFO)
         logger.propagate = False
     return logger

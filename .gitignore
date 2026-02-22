@@ -3,3 +3,4 @@
 .cursor/
 .vscode/
 __pycache__/
+*.gguf

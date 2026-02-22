@@ -1,0 +1,35 @@
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "confidence": 1.0}
+{"event": "justification", "model": "llama-local", "input_tokens": 359, "output_tokens": 57, "total_tokens": 416}
+{"event": "inference", "classification_source": "knn", "classe": "Hardware", "inference_time_sec": 21.6178, "justification_tokens": 416}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "confidence": 0.5714}
+{"event": "classification", "classifier": "llm", "classe": "Hardware", "model": "llama-local", "input_tokens": 230, "output_tokens": 7}
+{"event": "justification", "model": "llama-local", "input_tokens": 206, "output_tokens": 90, "total_tokens": 296}
+{"event": "inference", "classification_source": "llm", "classe": "Hardware", "inference_time_sec": 32.1831, "classification_tokens": 237, "justification_tokens": 296}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "confidence": 1.0}
+{"event": "justification", "model": "llama-local", "input_tokens": 360, "output_tokens": 70, "total_tokens": 430}
+{"event": "inference", "classification_source": "knn", "classe": "Hardware", "inference_time_sec": 25.5102, "classification_tokens": 237, "justification_tokens": 430}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "id": "45024d2cadabaf40", "confidence": 1.0}
+{"event": "justification", "model": "llama-local", "input_tokens": 359, "output_tokens": 58, "total_tokens": 417, "id": "45024d2cadabaf40"}
+{"event": "inference", "classification_source": "knn", "classe": "Hardware", "inference_time_sec": 18.9283, "id": "45024d2cadabaf40", "justification_tokens": 417}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "id": "6a5321713cc69cff", "confidence": 0.5714}
+{"event": "classification", "classifier": "llm", "classe": "Hardware", "id": "6a5321713cc69cff", "model": "llama-local", "input_tokens": 230, "output_tokens": 7}
+{"event": "justification", "model": "llama-local", "input_tokens": 206, "output_tokens": 129, "total_tokens": 335, "id": "6a5321713cc69cff"}
+{"event": "inference", "classification_source": "llm", "classe": "Hardware", "inference_time_sec": 48.4333, "id": "6a5321713cc69cff", "classification_tokens": 237, "justification_tokens": 335}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "id": "a9700c78dd65544a", "confidence": 1.0}
+{"event": "justification", "model": "llama-local", "input_tokens": 360, "output_tokens": 65, "total_tokens": 425, "id": "a9700c78dd65544a"}
+{"event": "inference", "classification_source": "knn", "classe": "Hardware", "inference_time_sec": 28.7066, "id": "a9700c78dd65544a", "justification_tokens": 425}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "id": "d474401fbd4611d8", "confidence": 1.0}
+{"event": "justification", "model": "llama-local", "input_tokens": 369, "output_tokens": 65, "total_tokens": 434, "id": "d474401fbd4611d8"}
+{"event": "inference", "classification_source": "knn", "classe": "Hardware", "inference_time_sec": 26.5933, "id": "d474401fbd4611d8", "justification_tokens": 434}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "id": "d508e5d26bc5350c", "confidence": 0.7143}
+{"event": "classification", "classifier": "llm", "classe": "Hardware", "id": "d508e5d26bc5350c", "model": "llama-local", "input_tokens": 342, "output_tokens": 7}
+{"event": "justification", "model": "llama-local", "input_tokens": 318, "output_tokens": 137, "total_tokens": 455, "id": "d508e5d26bc5350c"}
+{"event": "inference", "classification_source": "llm", "classe": "Hardware", "inference_time_sec": 53.3379, "id": "d508e5d26bc5350c", "classification_tokens": 349, "justification_tokens": 455}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "id": "d1a55c9345762667", "confidence": 1.0}
+{"event": "justification", "model": "llama-local", "input_tokens": 394, "output_tokens": 72, "total_tokens": 466, "id": "d1a55c9345762667"}
+{"event": "inference", "classification_source": "knn", "classe": "Hardware", "inference_time_sec": 32.1536, "id": "d1a55c9345762667", "justification_tokens": 466}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "id": "2b76503947e75c54", "confidence": 1.0}
+{"event": "justification", "model": "llama-local", "input_tokens": 390, "output_tokens": 82, "total_tokens": 472, "id": "2b76503947e75c54"}
+{"event": "inference", "classification_source": "knn", "classe": "Hardware", "inference_time_sec": 36.3793, "id": "2b76503947e75c54", "justification_tokens": 472}
+{"event": "classification", "classifier": "knn", "classe": "Hardware", "id": "0e5a86cbee9ba679", "confidence": 0.2857}
+{"event": "classification", "classifier": "llm", "classe": "Miscellaneous", "id": "0e5a86cbee9ba679", "model": "llama-local", "input_tokens": 230, "output_tokens": 8}

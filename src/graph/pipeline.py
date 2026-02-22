@@ -54,10 +54,12 @@ def _knn_classify(state: PipelineState, knn: KNNClassifier) -> PipelineState:
 def _llm_classify(state: PipelineState, llm: LLMClassifier) -> PipelineState:
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
     classes = state.get("classes") or []
-    embedding = state.get("embedding")
+    knn_classe = state.get("classe")
+    knn_conf = state.get("confidence")
+    knn_hint = (knn_classe, knn_conf) if knn_classe is not None and knn_conf is not None else None
     if not classes:
         return {**state, "used_llm_for_class": True}
-    classe, inp_tok, out_tok = llm.predict(text, classes, embedding=embedding)
+    classe, inp_tok, out_tok = llm.predict(text, classes, knn_hint=knn_hint)
     log_classification(
         classifier="llm",
         classe=classe,
@@ -125,12 +127,14 @@ def _log_and_return(state: PipelineState) -> PipelineState:
 
 def build_pipeline(
     vector_store: VectorStore,
-    classes: list[str],
+    classes: list[str] | None = None,
     embedder: Embedder | None = None,
 ):
     embedder = embedder or Embedder()
     knn = KNNClassifier(vector_store)
-    llm = LLMClassifier(vector_store)
+    llm = LLMClassifier.from_dataset()
+    if classes is None:
+        classes = llm.classes
 
     builder = StateGraph(PipelineState)
     builder.add_node("preprocess", _preprocess)
@@ -189,4 +193,6 @@ def run_pipeline(compiled, ticket_text: str, classes: list[str], *, thread_id: s
         "classification_source": classification_source,
         "confidence": values.get("confidence"),
         "inference_time_sec": inference_time_sec,
+        "classification_tokens": values.get("classification_tokens"),
+        "justification_tokens": values.get("justification_tokens"),
     }
