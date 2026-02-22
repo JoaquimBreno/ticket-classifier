@@ -1,7 +1,25 @@
+import hashlib
 import pandas as pd
 from pathlib import Path
 
 import config
+
+
+def _stable_id(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def _document_text(row: pd.Series, text_cols: list[str]) -> str:
+    parts = [str(row.get(c, "")) for c in text_cols if c in row.index]
+    return " ".join(p for p in parts if p and str(p).strip())
+
+
+def document_text(row: pd.Series, text_cols: list[str]) -> str:
+    return _document_text(row, text_cols)
+
+
+def stable_id(text: str) -> str:
+    return _stable_id(text)
 
 KAGGLE_DATASET = "adisongoh/it-service-ticket-classification-dataset"
 KAGGLE_DATASET_URL = "https://www.kaggle.com/datasets/adisongoh/it-service-ticket-classification-dataset"
@@ -58,14 +76,23 @@ def download_from_kaggle() -> Path:
 
 
 def load_dataset(csv_path: Path | None = None) -> pd.DataFrame:
+    config.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
+    processed_path = config.DATA_PROCESSED / config.PROCESSED_CSV_FILENAME
+    if csv_path is None and processed_path.exists():
+        return pd.read_csv(processed_path)
     if csv_path is None:
         csv_path = _find_csv(config.DATA_RAW)
     if csv_path is None:
         raise FileNotFoundError(
-            f"Nenhum CSV em {config.DATA_RAW}. É obrigatório baixar o dataset do Kaggle. "
-            "Execute: python -c \"from src.prep.loader import download_from_kaggle; download_from_kaggle()\""
+            f"Nenhum CSV em {config.DATA_RAW}. Baixe o dataset do Kaggle primeiro."
         )
     df = pd.read_csv(csv_path)
+    text_cols, _ = get_text_and_label_columns(df)
+    df = df.copy()
+    df["id"] = [_stable_id(_document_text(row, text_cols)) for _, row in df.iterrows()]
+    cols = ["id"] + [c for c in df.columns if c != "id"]
+    df = df[cols]
+    df.to_csv(processed_path, index=False)
     return df
 
 

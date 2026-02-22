@@ -6,9 +6,9 @@ Fluxo de automação que, dado o texto de um ticket, retorna a **classe** e uma 
 
 ## Arquitetura
 
-- **Orquestração:** LangGraph (StateGraph) — preprocess → embed → knn_classify → (confidence ≥ limiar → generate_justification | senão → llm_classify → generate_justification) → log_and_return
-- **Classificação:** Embeddings (sentence-transformers) + FAISS + KNN; fallback com LLM via **Open Router** quando a confiança do KNN é baixa
-- **Justificativa:** PydanticAI com **Open Router** — saída estruturada (classe + justificativa em 1–3 frases com evidências do ticket)
+- **Orquestração:** LangGraph (StateGraph) — preprocess → embed → knn_classify → se confiança ≥ limiar → generate_justification (só justificativa); senão → llm_classify (classe + justificativa em uma chamada) → log_and_return
+- **Classificação:** Embeddings (sentence-transformers) + FAISS + KNN; fallback com **LLM local** (llama-cpp-python) quando a confiança do KNN é baixa. Foi escolhido **KNN com all-MiniLM-L6-v2** por resultado satisfatório e melhor **explicabilidade** (não é caixa preta: a decisão se apoia nos k vizinhos mais próximos). As análises que fundamentam essa escolha estão em **[labs/architecture-comparison.ipynb](labs/architecture-comparison.ipynb)**: comparação de arquiteturas (RNN, LSTM, GRU, BiLSTM, BiGRU, CNN+BiGRU e KNN com all-MiniLM-L6-v2), tabela de métricas (accuracy, F1 macro/weighted), benchmark de tempo de inferência e seção de discussão em que se conclui que o KNN é o mais transparente (os vizinhos *são* a explicação), enquanto modelos neurais exigem camadas adicionais (ex.: saliency) para interpretabilidade.
+- **LLM e justificativa:** Pydantic (schema) + **llama-cpp-python** (inferência local). Sem API externa: modelo baixado do Hugging Face ou via `LLAMA_MODEL_PATH`; saída validada (classe + justificativa em 1–3 frases em português)
 
 ## Requisitos
 
@@ -41,9 +41,8 @@ cp .env.example .env
 Edite `.env` e defina:
 
 - `KAGGLE_API_TOKEN` — token da API do Kaggle (usado pelo [kagglehub](https://github.com/Kaggle/kagglehub) para baixar o dataset). Obtenha em [Kaggle – Settings – API](https://www.kaggle.com/settings), clique em "Generate New Token" e copie o valor para o `.env`.
-- `OPENROUTER_API_KEY` — chave em [openrouter.ai/keys](https://openrouter.ai/keys) (usada para classificação LLM e justificativa).
 
-Opcionais: `LABEL_COLUMN`, `TEXT_COLUMNS`, `KNN_K`, `KNN_CONFIDENCE_THRESHOLD`, `SAMPLE_SIZE`, `OPENROUTER_MODEL`, `EMBEDDING_MODEL`.
+Opcionais: `LABEL_COLUMN`, `TEXT_COLUMNS`, `KNN_K`, `KNN_CONFIDENCE_THRESHOLD`, `SAMPLE_SIZE`, `EMBEDDING_MODEL`, `JUSTIFICATION_MAX_TOKENS`. Para o LLM local: se o modelo for baixado do Hugging Face na primeira execução, defina `HF_TOKEN` (token em [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)); ou baixe o `.gguf` manualmente e defina `LLAMA_MODEL_PATH`. Opcionais: `LLAMA_N_CTX`, `LLAMA_N_GPU_LAYERS` (ex.: `-1` para Metal no Mac).
 
 1. Baixe o dataset do Kaggle (obrigatório):
 
@@ -89,19 +88,27 @@ ticket-classifier/
 │   ├── raw/
 │   └── processed/
 ├── src/
-│   ├── prep/         (loader, sampler)
-│   ├── rag/          (embedder, vector_store)
-│   ├── classification/ (knn_classifier, llm_classifier — Open Router)
-│   ├── graph/        (state, pipeline LangGraph)
-│   ├── justification/ (generator PydanticAI — Open Router)
-│   ├── metrics/      (evaluator)
+│   ├── prep/           (loader, sampler)
+│   ├── rag/             (embedder, vector_store)
+│   ├── classification/  (knn_classifier)
+│   ├── llm_local/       (Pydantic + llama-cpp-python: agent_classifier, agent_justify)
+│   ├── graph/           (state, pipeline LangGraph)
+│   ├── justification/   (wrapper que chama llm_local)
+│   ├── metrics/         (evaluator)
 │   └── logging_utils/
 ├── outputs/
+├── models/              # modelo GGUF (criado no primeiro run se não houver LLAMA_MODEL_PATH)
 └── notebook.ipynb
+```
+
+**Apple Silicon (M1/M2):** para usar Metal, instale o llama-cpp-python com suporte a GPU:
+
+```bash
+CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python
 ```
 
 ## Reprodutibilidade
 
-- Seed fixo em `config.SEED` (42); usado na amostragem e, quando aplicável, em modelos.
+- Seed fixo em `config.SEED` (42); usado na amostragem.
 - Amostra de 200 (ou menor se a base for menor) salva em `data/processed/sample_200.csv`.
 

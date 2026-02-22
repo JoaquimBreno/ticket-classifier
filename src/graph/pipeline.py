@@ -10,7 +10,7 @@ from .state import PipelineState
 from src.logging_utils import log_classification, log_inference, log_justification
 from src.rag import Embedder, VectorStore
 from src.classification import KNNClassifier, LLMClassifier
-from src.justification.generator import generate_justification_text
+from src.llm_local import agent_justify
 
 
 def _clean_text(t: str) -> str:
@@ -36,9 +36,13 @@ def _embed(state: PipelineState, embedder: Embedder) -> PipelineState:
 
 
 def _knn_classify(state: PipelineState, knn: KNNClassifier) -> PipelineState:
+    embedding = state.get("embedding")
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
-    classe, confidence = knn.predict(text)
-    log_classification(classifier="knn", classe=classe, confidence=confidence)
+    classe, confidence = knn.predict(text, embedding=embedding)
+    log_classification(
+        classifier="knn", classe=classe, confidence=confidence,
+        instance_id=state.get("instance_id"),
+    )
     return {
         **state,
         "classe": classe,
@@ -50,29 +54,24 @@ def _knn_classify(state: PipelineState, knn: KNNClassifier) -> PipelineState:
 def _llm_classify(state: PipelineState, llm: LLMClassifier) -> PipelineState:
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
     classes = state.get("classes") or []
+    embedding = state.get("embedding")
     if not classes:
         return {**state, "used_llm_for_class": True}
-    classe, usage_info = llm.predict(text, classes)
-    if usage_info:
-        log_classification(
-            classifier="llm",
-            classe=classe,
-            model=llm.model,
-            input_tokens=usage_info["input_tokens"],
-            output_tokens=usage_info["output_tokens"],
-            total_tokens=usage_info.get("total_tokens"),
-        )
-        total = usage_info.get("total_tokens")
-        state_extra = {"classification_tokens": total} if total is not None else {}
-    else:
-        log_classification(classifier="llm", classe=classe, model=llm.model)
-        state_extra = {}
+    classe, inp_tok, out_tok = llm.predict(text, classes, embedding=embedding)
+    log_classification(
+        classifier="llm",
+        classe=classe,
+        model="llama-local",
+        input_tokens=inp_tok,
+        output_tokens=out_tok,
+        instance_id=state.get("instance_id"),
+    )
     return {
         **state,
-        **state_extra,
         "classe": classe,
         "confidence": 0.0,
         "used_llm_for_class": True,
+        "classification_tokens": inp_tok + out_tok,
     }
 
 
@@ -80,25 +79,35 @@ def _justify(state: PipelineState, vector_store: VectorStore, k: int) -> Pipelin
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
     classe = state.get("classe") or ""
     confidence = state.get("confidence")
-    neighbors = vector_store.search(text, k=k) if text else []
-    justificativa, usage_info = generate_justification_text(
+    used_llm = state.get("used_llm_for_class") is True
+    winning_voters = None
+    if not used_llm:
+        embedding = state.get("embedding")
+        if embedding is not None:
+            neighbors = vector_store.search_by_vector(embedding, k=k)
+        else:
+            neighbors = vector_store.search(text, k=k) if text else []
+        winning_voters = [
+            (i, dist, (txt or "").strip()[:200])
+            for i, (label, txt, dist) in enumerate(neighbors)
+            if label == classe
+        ]
+    justificativa, inp_tok, out_tok = agent_justify(
         ticket_text=text,
         classe=classe,
         confidence=confidence,
-        neighbors=neighbors,
+        winning_voters=winning_voters,
+        used_llm_for_class=used_llm,
     )
-    if usage_info:
-        log_justification(
-            model=config.OPENROUTER_MODEL,
-            input_tokens=usage_info["input_tokens"],
-            output_tokens=usage_info["output_tokens"],
-            total_tokens=usage_info.get("total_tokens"),
-        )
-        total = usage_info.get("total_tokens")
-        state_extra = {"justification_tokens": total} if total is not None else {}
-    else:
-        state_extra = {}
-    return {**state, "justificativa": justificativa, **state_extra}
+    log_justification(
+        model="llama-local", input_tokens=inp_tok, output_tokens=out_tok,
+        instance_id=state.get("instance_id"),
+    )
+    return {
+        **state,
+        "justificativa": justificativa,
+        "justification_tokens": inp_tok + out_tok,
+    }
 
 
 def _route_after_knn(state: PipelineState) -> Literal["generate_justification", "llm_classify"]:
@@ -150,12 +159,14 @@ def build_pipeline(
     return builder.compile(checkpointer=memory), embedder, knn, llm
 
 
-def run_pipeline(compiled, ticket_text: str, classes: list[str], *, thread_id: str = "default"):
+def run_pipeline(compiled, ticket_text: str, classes: list[str], *, thread_id: str = "default", instance_id: str | None = None):
     run_config = {"configurable": {"thread_id": thread_id}}
     initial: PipelineState = {
         "ticket_text": ticket_text,
         "classes": classes,
     }
+    if instance_id is not None:
+        initial["instance_id"] = instance_id
     t0 = time.perf_counter()
     final = compiled.invoke(initial, run_config)
     inference_time_sec = time.perf_counter() - t0
@@ -170,10 +181,12 @@ def run_pipeline(compiled, ticket_text: str, classes: list[str], *, thread_id: s
         inference_time_sec=inference_time_sec,
         classification_tokens=values.get("classification_tokens"),
         justification_tokens=values.get("justification_tokens"),
+        instance_id=values.get("instance_id"),
     )
     return {
         "classe": values.get("classe", ""),
         "justificativa": values.get("justificativa", ""),
         "classification_source": classification_source,
+        "confidence": values.get("confidence"),
         "inference_time_sec": inference_time_sec,
     }

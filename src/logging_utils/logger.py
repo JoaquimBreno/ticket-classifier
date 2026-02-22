@@ -26,12 +26,15 @@ def log_classification(
     input_tokens: int | None = None,
     output_tokens: int | None = None,
     total_tokens: int | None = None,
+    instance_id: str | None = None,
 ) -> None:
     payload: dict = {
         "event": "classification",
         "classifier": classifier,
         "classe": classe,
     }
+    if instance_id is not None:
+        payload["id"] = instance_id
     if confidence is not None:
         payload["confidence"] = round(confidence, 4)
     if model is not None:
@@ -50,6 +53,7 @@ def log_justification(
     input_tokens: int,
     output_tokens: int,
     total_tokens: int | None = None,
+    instance_id: str | None = None,
 ) -> None:
     total = total_tokens if total_tokens is not None else input_tokens + output_tokens
     payload = {
@@ -59,6 +63,8 @@ def log_justification(
         "output_tokens": output_tokens,
         "total_tokens": total,
     }
+    if instance_id is not None:
+        payload["id"] = instance_id
     get_usage_logger().info("%s", json.dumps(payload, ensure_ascii=False))
 
 
@@ -68,6 +74,7 @@ def log_inference(
     inference_time_sec: float,
     classification_tokens: int | None = None,
     justification_tokens: int | None = None,
+    instance_id: str | None = None,
 ) -> None:
     payload: dict = {
         "event": "inference",
@@ -75,6 +82,8 @@ def log_inference(
         "classe": classe,
         "inference_time_sec": round(inference_time_sec, 4),
     }
+    if instance_id is not None:
+        payload["id"] = instance_id
     if classification_tokens is not None:
         payload["classification_tokens"] = classification_tokens
     if justification_tokens is not None:

@@ -2,6 +2,7 @@ from typing import TypedDict
 
 
 class PipelineState(TypedDict, total=False):
+    instance_id: str
     ticket_text: str
     cleaned_text: str
     embedding: list[float]

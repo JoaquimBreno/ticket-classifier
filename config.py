@@ -8,6 +8,7 @@ DATA_PROCESSED = ROOT / "data" / "processed"
 OUTPUTS = ROOT / "outputs"
 ARTIFACTS_DIR = OUTPUTS / "artifacts"
 RAW_CSV_FILENAME = "all_tickets_processed_improved_v3.csv"
+PROCESSED_CSV_FILENAME = "dataset_with_id.csv"
 
 LABEL_COLUMN = os.getenv("LABEL_COLUMN", "Topic_group")
 TEXT_COLUMNS = [c.strip() for c in os.getenv("TEXT_COLUMNS", "Document").split(",")]
@@ -17,9 +18,13 @@ KNN_CONFIDENCE_THRESHOLD = float(os.getenv("KNN_CONFIDENCE_THRESHOLD", "0.75"))
 SAMPLE_SIZE = int(os.getenv("SAMPLE_SIZE", "200"))
 
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
+
+MODELS_DIR = ROOT / os.getenv("MODELS_DIR", "models")
+LLAMA_MODEL_PATH = os.getenv("LLAMA_MODEL_PATH") or None
+LLAMA_N_CTX = int(os.getenv("LLAMA_N_CTX", "2048"))
+LLAMA_N_GPU_LAYERS = int(os.getenv("LLAMA_N_GPU_LAYERS", "-1"))
+LLAMA_HF_REPO = os.getenv("LLAMA_HF_REPO", "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF")
+LLAMA_HF_FILENAME = os.getenv("LLAMA_HF_FILENAME", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf")
 JUSTIFICATION_MAX_TOKENS = int(os.getenv("JUSTIFICATION_MAX_TOKENS", "200"))
 
 for d in (DATA_RAW, DATA_PROCESSED, OUTPUTS, ARTIFACTS_DIR):
