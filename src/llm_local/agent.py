@@ -6,6 +6,37 @@ import config
 from .backend import get_llm_backend
 
 
+def _load_class_schema() -> dict | None:
+    if not config.CLASS_SCHEMA_PATH.exists():
+        return None
+    try:
+        with open(config.CLASS_SCHEMA_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _build_schema_and_few_shot(classes_validas: list[str]) -> tuple[str, str]:
+    data = _load_class_schema()
+    if not data or "classes" not in data:
+        return "", ""
+    definitions = []
+    examples_by_class = []
+    for c in classes_validas:
+        info = data["classes"].get(c)
+        if not info:
+            continue
+        definitions.append(f"- **{c}**: {info.get('description', '').strip()}")
+        ex_list = info.get("examples") or []
+        for ex in ex_list[:2]:
+            snippet = (ex or "").strip()[:config.MAX_EXAMPLE_CHARS]
+            if snippet:
+                examples_by_class.append(f"  Ticket: {snippet}\n  Classe: {c}")
+    def_block = "\n".join(definitions) if definitions else ""
+    few_shot_block = "\n\n".join(examples_by_class) if examples_by_class else ""
+    return def_block, few_shot_block
+
+
 class TicketClassification(BaseModel):
     classe: str = Field(
         min_length=1,
@@ -99,16 +130,75 @@ def _parse_justification(raw: str) -> str:
     return (raw or "").strip()
 
 
+def _parse_classify_and_justify(raw: str, classes_validas: list[str]) -> tuple[str, str]:
+    blob = _extract_json(raw)
+    if blob and classes_validas:
+        try:
+            data = json.loads(blob)
+            if isinstance(data, dict) and "classe" in data and "justificativa" in data:
+                out = TicketClassification.model_validate(data)
+                return _normalize_class(out.classe, classes_validas), out.justificativa.strip()
+        except (json.JSONDecodeError, Exception):
+            pass
+    return classes_validas[0], (raw or "").strip()
+
+
+def agent_classify_and_justify(
+    ticket_text: str,
+    classes_validas: list[str],
+    knn_hint: tuple[str, float],
+) -> tuple[str, str, int, int]:
+    backend = get_llm_backend()
+    knn_classe, knn_conf = knn_hint
+    def_block, few_shot_block = _build_schema_and_few_shot(classes_validas)
+    schema_section = (
+        f"\n\nDefinição das categorias:\n{def_block}"
+        if def_block else ""
+    )
+    system = (
+        "You are an expert IT analyst. Output only valid JSON with keys 'classe' and 'justificativa'. "
+        "classe: exact category name from the list. justificativa: 1-3 sentences in PT-BR explaining the classification. "
+        f"{schema_section}"
+    )
+    few_shot_section = (
+        f"Exemplos por categoria:\n{few_shot_block}\n\n"
+        if few_shot_block else ""
+    )
+    user = (
+        f"KNN sugeriu a classe {knn_classe!r} com confiança {knn_conf:.2f} (abaixo do limiar). Use como hint.\n\n"
+        f"Categorias válidas: {classes_validas}.\n\n"
+        f"{few_shot_section}"
+        f"Classifique o ticket abaixo em uma das categorias e justifique em 1-3 frases (PT-BR).\n\n"
+        f"Ticket:\n{ticket_text[:config.CLASSIFICATION_MAX_CHARS]}"
+    )
+    print(user)
+    print(system)
+    
+    content, input_tokens, output_tokens = backend.chat_completion(
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.1,
+        max_tokens=config.JUSTIFICATION_MAX_TOKENS,
+        response_format={
+            "type": "json_object",
+            "schema": TicketClassification.model_json_schema(),
+        },
+    )
+    print(content)
+    classe, justificativa = _parse_classify_and_justify(content, classes_validas)
+    
+    return classe, justificativa, input_tokens, output_tokens
+
+
 def agent_classifier(
     texto_ticket: str,
     classes_validas: list[str],
-    taxonomy: str | None = None,
     knn_hint: tuple[str, float] | None = None,
 ) -> tuple[str, int, int]:
     backend = get_llm_backend()
     system = "You are an expert IT analyst. Output only valid JSON with a single key 'classe' whose value is the exact category name. Be objective."
-    if taxonomy:
-        system = system + "\n\n" + taxonomy
     hint_line = ""
     if knn_hint:
         knn_classe, knn_conf = knn_hint

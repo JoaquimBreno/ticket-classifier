@@ -9,8 +9,8 @@ import config
 from .state import PipelineState
 from src.logging_utils import log_classification, log_inference, log_justification
 from src.rag import Embedder, VectorStore
-from src.classification import KNNClassifier, LLMClassifier
-from src.llm_local import agent_justify
+from src.classification import KNNClassifier
+from src.llm_local import agent_classify_and_justify, agent_justify
 
 
 def _clean_text(t: str) -> str:
@@ -51,15 +51,15 @@ def _knn_classify(state: PipelineState, knn: KNNClassifier) -> PipelineState:
     }
 
 
-def _llm_classify(state: PipelineState, llm: LLMClassifier) -> PipelineState:
+def _llm_classify_and_justify(state: PipelineState) -> PipelineState:
     text = state.get("cleaned_text") or state.get("ticket_text") or ""
     classes = state.get("classes") or []
     knn_classe = state.get("classe")
     knn_conf = state.get("confidence")
-    knn_hint = (knn_classe, knn_conf) if knn_classe is not None and knn_conf is not None else None
-    if not classes:
+    if not classes or knn_classe is None or knn_conf is None:
         return {**state, "used_llm_for_class": True}
-    classe, inp_tok, out_tok = llm.predict(text, classes, knn_hint=knn_hint)
+    knn_hint = (knn_classe, knn_conf)
+    classe, justificativa, inp_tok, out_tok = agent_classify_and_justify(text, classes, knn_hint)
     log_classification(
         classifier="llm",
         classe=classe,
@@ -68,12 +68,19 @@ def _llm_classify(state: PipelineState, llm: LLMClassifier) -> PipelineState:
         output_tokens=out_tok,
         instance_id=state.get("instance_id"),
     )
+    log_justification(
+        model="llama-local", input_tokens=inp_tok, output_tokens=out_tok,
+        instance_id=state.get("instance_id"),
+    )
+    total = inp_tok + out_tok
     return {
         **state,
         "classe": classe,
+        "justificativa": justificativa,
         "confidence": 0.0,
         "used_llm_for_class": True,
-        "classification_tokens": inp_tok + out_tok,
+        "classification_tokens": total,
+        "justification_tokens": total,
     }
 
 
@@ -112,13 +119,13 @@ def _justify(state: PipelineState, vector_store: VectorStore, k: int) -> Pipelin
     }
 
 
-def _route_after_knn(state: PipelineState) -> Literal["generate_justification", "llm_classify"]:
+def _route_after_knn(state: PipelineState) -> Literal["generate_justification", "llm_classify_and_justify"]:
     if state.get("used_llm_for_class") is True:
         return "generate_justification"
     conf = state.get("confidence", 0.0)
     if conf >= config.KNN_CONFIDENCE_THRESHOLD:
         return "generate_justification"
-    return "llm_classify"
+    return "llm_classify_and_justify"
 
 
 def _log_and_return(state: PipelineState) -> PipelineState:
@@ -132,15 +139,14 @@ def build_pipeline(
 ):
     embedder = embedder or Embedder()
     knn = KNNClassifier(vector_store)
-    llm = LLMClassifier.from_dataset()
     if classes is None:
-        classes = llm.classes
+        classes = sorted(set(vector_store.labels))
 
     builder = StateGraph(PipelineState)
     builder.add_node("preprocess", _preprocess)
     builder.add_node("embed", lambda s: _embed(s, embedder))
     builder.add_node("knn_classify", lambda s: _knn_classify(s, knn))
-    builder.add_node("llm_classify", lambda s: _llm_classify(s, llm))
+    builder.add_node("llm_classify_and_justify", _llm_classify_and_justify)
     builder.add_node(
         "generate_justification",
         lambda s: _justify(s, vector_store, k=config.KNN_K),
@@ -153,14 +159,14 @@ def build_pipeline(
     builder.add_conditional_edges(
         "knn_classify",
         _route_after_knn,
-        {"generate_justification": "generate_justification", "llm_classify": "llm_classify"},
+        {"generate_justification": "generate_justification", "llm_classify_and_justify": "llm_classify_and_justify"},
     )
-    builder.add_edge("llm_classify", "generate_justification")
+    builder.add_edge("llm_classify_and_justify", "log_and_return")
     builder.add_edge("generate_justification", "log_and_return")
     builder.add_edge("log_and_return", END)
 
     memory = MemorySaver()
-    return builder.compile(checkpointer=memory), embedder, knn, llm
+    return builder.compile(checkpointer=memory), embedder, knn
 
 
 def run_pipeline(compiled, ticket_text: str, classes: list[str], *, thread_id: str = "default", instance_id: str | None = None):
