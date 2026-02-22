@@ -1,95 +1,52 @@
 import json
 
-from pydantic import BaseModel, Field
-
 import config
 from .backend import get_llm_backend
+from .schemas import JustificationResponse, TicketClassification
+
+MAX_J = config.JUSTIFICATION_MAX_LENGTH
 
 
-def _load_class_schema() -> dict | None:
-    if not config.CLASS_SCHEMA_PATH.exists():
-        return None
-    try:
-        with open(config.CLASS_SCHEMA_PATH, encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return None
-
-
-def _build_schema_and_few_shot(classes_validas: list[str]) -> tuple[str, str]:
-    data = _load_class_schema()
-    if not data or "classes" not in data:
-        return "", ""
-    definitions = []
-    examples_by_class = []
-    for c in classes_validas:
-        info = data["classes"].get(c)
-        if not info:
-            continue
-        definitions.append(f"- **{c}**: {info.get('description', '').strip()}")
-        ex_list = info.get("examples") or []
-        for ex in ex_list[:2]:
-            snippet = (ex or "").strip()[:config.MAX_EXAMPLE_CHARS]
-            if snippet:
-                examples_by_class.append(f"  Ticket: {snippet}\n  Classe: {c}")
-    def_block = "\n".join(definitions) if definitions else ""
-    few_shot_block = "\n\n".join(examples_by_class) if examples_by_class else ""
-    return def_block, few_shot_block
-
-
-class TicketClassification(BaseModel):
-    classe: str = Field(
-        min_length=1,
-        description="Categoria exata do ticket (deve ser uma das classes fornecidas).",
-    )
-    justificativa: str = Field(
-        min_length=1,
-        description="Explicação em 1 a 3 frases do motivo da classificação, citando termos do ticket, em português.",
-    )
-
-
-class JustificationResponse(BaseModel):
-    justificativa: str = Field(
-        min_length=1,
-        max_length=500,
-        description="Explicação em 1 a 3 frases em português que justifica a classificação, citando termos do ticket.",
-    )
-
-
-JustificativaOnly = JustificationResponse
-
-
-def _extract_json(raw: str) -> str | None:
-    if not raw or not raw.strip():
+def _json_from_raw(raw: str) -> dict | None:
+    if not (raw and raw.strip()):
         return None
     s = raw.strip()
     for prefix in ("```json", "```"):
         if s.startswith(prefix):
-            s = s[len(prefix):].lstrip()
+            s = s[len(prefix) :].lstrip()
     if s.endswith("```"):
         s = s[:-3].rstrip()
-    start = s.find("{")
-    if start == -1:
+    start, end = s.find("{"), s.rfind("}") + 1
+    if start == -1 or end <= start:
         return None
-    end = s.rfind("}") + 1
-    if end <= start:
+    try:
+        out = json.loads(s[start:end])
+        return out if isinstance(out, dict) else None
+    except json.JSONDecodeError:
         return None
-    return s[start:end]
+
+
+def _truncate(text: str, max_len: int) -> str:
+    if not text or len(text) <= max_len:
+        return text
+    cut = text[: max_len + 1]
+    last = cut.rfind(" ")
+    return text[: last].strip() if last > 0 else text[:max_len]
 
 
 def _format_winning_voters(winning_voters: list[tuple[int, float, str]], max_len: int = 120) -> str:
     lines = []
     for idx, dist, text in winning_voters:
-        s = (text or "").strip()[:max_len]
+        t = (text or "").strip()[:max_len]
         if len((text or "").strip()) > max_len:
-            s += "..."
-        lines.append(f"- #{idx} (dist {dist:.2f}): {s}")
+            t += "..."
+        lines.append(f"- #{idx} (dist {dist:.2f}): {t}")
     return "\n".join(lines) if lines else ""
 
 
 def _normalize_class(c: str, classes_validas: list[str]) -> str:
     if not classes_validas:
-        return c.strip() if c else ""
+        return (c or "").strip()
     cnorm = (c or "").strip().lower()
     for valid in classes_validas:
         if (valid or "").strip().lower() == cnorm:
@@ -98,29 +55,28 @@ def _normalize_class(c: str, classes_validas: list[str]) -> str:
 
 
 def _parse_justification(raw: str) -> str:
-    blob = _extract_json(raw)
-    if blob:
+    data = _json_from_raw(raw)
+    s = None
+    if data and "justificativa" in data:
         try:
-            data = json.loads(blob)
-            if isinstance(data, dict) and "justificativa" in data:
-                out = JustificationResponse.model_validate(data)
-                return out.justificativa.strip()
-        except (json.JSONDecodeError, Exception):
+            s = JustificationResponse.model_validate(data).justificativa.strip()
+        except Exception:
             pass
-    return (raw or "").strip()
+    return _truncate(s or (raw or "").strip(), MAX_J)
 
 
 def _parse_classify_and_justify(raw: str, classes_validas: list[str]) -> tuple[str, str]:
-    blob = _extract_json(raw)
-    if blob and classes_validas:
+    data = _json_from_raw(raw)
+    classe = classes_validas[0] if classes_validas else ""
+    j = (raw or "").strip()
+    if data and "classe" in data and "justificativa" in data and classes_validas:
         try:
-            data = json.loads(blob)
-            if isinstance(data, dict) and "classe" in data and "justificativa" in data:
-                out = TicketClassification.model_validate(data)
-                return _normalize_class(out.classe, classes_validas), out.justificativa.strip()
-        except (json.JSONDecodeError, Exception):
+            out = TicketClassification.model_validate(data)
+            classe = _normalize_class(out.classe, classes_validas)
+            j = out.justificativa.strip()
+        except Exception:
             pass
-    return classes_validas[0], (raw or "").strip()
+    return classe, _truncate(j, MAX_J)
 
 
 def agent_classify_and_justify(
@@ -130,25 +86,16 @@ def agent_classify_and_justify(
 ) -> tuple[str, str, int, int]:
     backend = get_llm_backend()
     knn_classe, knn_conf = knn_hint
-    def_block, few_shot_block = _build_schema_and_few_shot(classes_validas)
-    schema_section = (
-        f"\n\nDefinição das categorias:\n{def_block}"
-        if def_block else ""
-    )
     system = (
-        "You are an expert IT analyst. Output only valid JSON with keys 'classe' and 'justificativa'. "
-        "classe: exact category name from the list. justificativa: 1-3 sentences in PT-BR explaining the classification. "
-        f"{schema_section}"
-    )
-    few_shot_section = (
-        f"Exemplos por categoria:\n{few_shot_block}\n\n"
-        if few_shot_block else ""
+        "Analista de tickets. Saída apenas JSON com chaves 'classe' e 'justificativa'. "
+        "classe: nome exato de uma das categorias fornecidas. "
+        "justificativa: em 1-3 frases (PT-BR) você DEVE (1) citar o que o KNN sugeriu (classe e confiança), "
+        "(2) em seguida dar sua contrapartida: concordar (mesma classe) ou discordar (outra classe) e o porquê, citando termos do ticket."
     )
     user = (
-        f"KNN sugeriu a classe {knn_classe!r} com confiança {knn_conf:.2f} (abaixo do limiar). Use como hint.\n\n"
-        f"Categorias válidas: {classes_validas}.\n\n"
-        f"{few_shot_section}"
-        f"Classifique o ticket abaixo em uma das categorias e justifique em 1-3 frases (PT-BR).\n\n"
+        f"KNN sugeriu: classe {knn_classe!r}, confiança {knn_conf:.2f} (abaixo do limiar). Use como guia.\n\n"
+        f"Categorias válidas: {classes_validas}\n\n"
+        f"Classifique o ticket. Na justificativa: diga o que o KNN sugeriu e depois sua contrapartida (mesma classe ou não, e por quê), citando o ticket.\n\n"
         f"Ticket:\n{ticket_text[:config.CLASSIFICATION_MAX_CHARS]}"
     )
     
@@ -178,8 +125,8 @@ def _justify_knn(
 ) -> tuple[str, int, int]:
     system = (
         "Analista de tickets. Responda em JSON com uma única chave 'justificativa'. "
-        "Em 1-3 frases (PT-BR), indique quais palavras ou expressões do próprio texto do ticket "
-        "estão correlacionadas à classe atribuída e aos vizinhos KNN; cite trechos do ticket e relacione com os vizinhos. Só a justificativa."
+        "Em no máximo 3 frases curtas (PT-BR), indique quais termos do ticket correlacionam à classe e aos vizinhos KNN. "
+        "Seja conciso. Só a justificativa."
     )
     user = (
         f"Ticket:\n{ticket_text[:config.JUSTIFICATION_MAX_CHARS]}\n\n"

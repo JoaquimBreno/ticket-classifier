@@ -6,10 +6,9 @@ import config
 
 
 class KNNClassifier:
-    def __init__(self, vector_store: VectorStore, k: int | None = None, confidence_threshold: float | None = None):
+    def __init__(self, vector_store: VectorStore, k: int | None = None):
         self.store = vector_store
         self.k = k or config.KNN_K
-        self.confidence_threshold = confidence_threshold if confidence_threshold is not None else config.KNN_CONFIDENCE_THRESHOLD
 
     def predict(self, text: str, embedding: list[float] | None = None) -> tuple[str, float]:
         if embedding is not None:

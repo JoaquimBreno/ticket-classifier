@@ -42,8 +42,7 @@ def _resolve_model_path() -> Path:
         if alt.exists():
             return alt
         return _download_model_to(p.parent)
-    models_dir = _project_root() / os.getenv("MODELS_DIR", "models")
-    return _download_model_to(models_dir)
+    return _download_model_to(config.MODELS_DIR)
 
 
 class LlamaCppBackend:
@@ -58,6 +57,8 @@ class LlamaCppBackend:
                 model_path=str(path),
                 n_gpu_layers=config.LLAMA_N_GPU_LAYERS,
                 n_ctx=config.LLAMA_N_CTX,
+                n_batch=config.LLAMA_N_BATCH,
+                n_threads=config.LLAMA_N_THREADS,
                 verbose=False,
             )
         return self._model

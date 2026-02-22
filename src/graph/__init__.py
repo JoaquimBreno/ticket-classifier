@@ -1,4 +1,4 @@
-from .state import PipelineState
 from .pipeline import build_pipeline, run_pipeline
+from .state import PipelineResult, PipelineState
 
-__all__ = ["PipelineState", "build_pipeline", "run_pipeline"]
+__all__ = ["PipelineState", "PipelineResult", "build_pipeline", "run_pipeline"]

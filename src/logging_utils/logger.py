@@ -10,67 +10,33 @@ LLM_USAGE_LOGGER = "ticket_classifier.llm_usage"
 def get_usage_logger() -> logging.Logger:
     logger = logging.getLogger(LLM_USAGE_LOGGER)
     if not logger.handlers:
-        path = config.OUTPUTS / "usage.jsonl"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(path, mode="a", encoding="utf-8")
-        file_handler.setFormatter(logging.Formatter("%(message)s"))
-        logger.addHandler(file_handler)
-        if getattr(config, "LOG_DISPLAY", False):
-            stream_handler = logging.StreamHandler()
-            stream_handler.setFormatter(logging.Formatter("%(message)s"))
-            logger.addHandler(stream_handler)
+        stream = logging.StreamHandler()
+        stream.setFormatter(logging.Formatter("%(message)s"))
+        logger.addHandler(stream)
         logger.setLevel(logging.INFO)
         logger.propagate = False
     return logger
 
 
-def log_classification(
-    classifier: str,
-    classe: str,
-    confidence: float | None = None,
-    model: str | None = None,
-    input_tokens: int | None = None,
-    output_tokens: int | None = None,
-    total_tokens: int | None = None,
-    instance_id: str | None = None,
-) -> None:
-    payload: dict = {
-        "event": "classification",
-        "classifier": classifier,
-        "classe": classe,
-    }
-    if instance_id is not None:
-        payload["id"] = instance_id
-    if confidence is not None:
-        payload["confidence"] = round(confidence, 4)
-    if model is not None:
-        payload["model"] = model
-    if input_tokens is not None:
-        payload["input_tokens"] = input_tokens
-    if output_tokens is not None:
-        payload["output_tokens"] = output_tokens
-    if total_tokens is not None:
-        payload["total_tokens"] = total_tokens
-    get_usage_logger().info("%s", json.dumps(payload, ensure_ascii=False))
+_STEP_EVENT: dict[str, str] = {
+    "knn_classify": "classification",
+    "agent_justify": "justification",
+    "agent_classify_and_justify": "classify_and_justify",
+    "inference": "inference",
+}
 
 
-def log_justification(
-    model: str,
-    input_tokens: int,
-    output_tokens: int,
-    total_tokens: int | None = None,
-    instance_id: str | None = None,
-) -> None:
-    total = total_tokens if total_tokens is not None else input_tokens + output_tokens
-    payload = {
-        "event": "justification",
-        "model": model,
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "total_tokens": total,
-    }
-    if instance_id is not None:
-        payload["id"] = instance_id
+def log_usage(step: str, **kwargs) -> None:
+    payload: dict = {"step": step, "event": _STEP_EVENT.get(step, step)}
+    for k, v in kwargs.items():
+        if v is None:
+            continue
+        if k == "confidence" or k == "inference_time_sec":
+            payload[k] = round(float(v), 4)
+        else:
+            payload[k] = v
+    if "input_tokens" in payload and "output_tokens" in payload and "total_tokens" not in payload:
+        payload["total_tokens"] = payload["input_tokens"] + payload["output_tokens"]
     get_usage_logger().info("%s", json.dumps(payload, ensure_ascii=False))
 
 
@@ -82,19 +48,15 @@ def log_inference(
     justification_tokens: int | None = None,
     instance_id: str | None = None,
 ) -> None:
-    payload: dict = {
-        "event": "inference",
-        "classification_source": classification_source,
-        "classe": classe,
-        "inference_time_sec": round(inference_time_sec, 4),
-    }
-    if instance_id is not None:
-        payload["id"] = instance_id
-    if classification_tokens is not None:
-        payload["classification_tokens"] = classification_tokens
-    if justification_tokens is not None:
-        payload["justification_tokens"] = justification_tokens
-    get_usage_logger().info("%s", json.dumps(payload, ensure_ascii=False))
+    log_usage(
+        "inference",
+        classification_source=classification_source,
+        classe=classe,
+        inference_time_sec=inference_time_sec,
+        classification_tokens=classification_tokens,
+        justification_tokens=justification_tokens,
+        instance_id=instance_id,
+    )
 
 
 def log_result(payload: dict, path: Path | None = None, append: bool = True):

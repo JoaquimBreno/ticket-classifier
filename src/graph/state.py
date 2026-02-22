@@ -13,3 +13,13 @@ class PipelineState(TypedDict, total=False):
     classes: list[str]
     classification_tokens: int
     justification_tokens: int
+
+
+class PipelineResult(TypedDict, total=False):
+    classe: str
+    justificativa: str
+    classification_source: str
+    confidence: float
+    inference_time_sec: float
+    classification_tokens: int | None
+    justification_tokens: int | None
