@@ -7,8 +7,8 @@ Fluxo de automação que, dado o texto de um ticket, retorna a **classe** e uma 
 ## Arquitetura
 
 - **Orquestração:** LangGraph (StateGraph) — preprocess → embed → knn_classify → se confiança ≥ limiar → generate_justification (só justificativa); senão → agent_classify_justify (classe + justificativa em uma chamada) → log_and_return
-- **Classificação:** Embeddings (sentence-transformers) + FAISS + KNN; fallback com **LLM local** (llama-cpp-python) quando a confiança do KNN é baixa. Foi escolhido **KNN com all-MiniLM-L6-v2** por resultado satisfatório e melhor **explicabilidade** (não é caixa preta: a decisão se apoia nos k vizinhos mais próximos). As análises que fundamentam essa escolha estão em **[labs/architecture-comparison.ipynb](labs/architecture-comparison.ipynb)**: comparação de arquiteturas (RNN, LSTM, GRU, BiLSTM, BiGRU, CNN+BiGRU e KNN com all-MiniLM-L6-v2), tabela de métricas (accuracy, F1 macro/weighted), benchmark de tempo de inferência e seção de discussão em que se conclui que o KNN é o mais transparente (os vizinhos *são* a explicação), enquanto modelos neurais exigem camadas adicionais (ex.: saliency) para interpretabilidade.
-- **LLM e justificativa:** Pydantic (schema) + **llama-cpp-python** (inferência local). Sem API externa: modelo baixado do Hugging Face ou via `LLAMA_MODEL_PATH`; saída validada (classe + justificativa em 1–3 frases em português)
+- **Classificação:** Embeddings (sentence-transformers) + FAISS + KNN; fallback com **LLM** (modular: local via llama-cpp-python ou Groq) quando a confiança do KNN é baixa. Foi escolhido **KNN com all-MiniLM-L6-v2** por resultado satisfatório e melhor **explicabilidade** (não é caixa preta: a decisão se apoia nos k vizinhos mais próximos). As análises que fundamentam essa escolha estão em **[labs/architecture-comparison.ipynb](labs/architecture-comparison.ipynb)**: comparação de arquiteturas (RNN, LSTM, GRU, BiLSTM, BiGRU, CNN+BiGRU e KNN com all-MiniLM-L6-v2), tabela de métricas (accuracy, F1 macro/weighted), benchmark de tempo de inferência e seção de discussão em que se conclui que o KNN é o mais transparente (os vizinhos *são* a explicação), enquanto modelos neurais exigem camadas adicionais (ex.: saliency) para interpretabilidade.
+- **LLM e justificativa:** Pydantic (schema) + backends plugáveis: **llama_cpp** (local, Hugging Face / `LLAMA_MODEL_PATH`) ou **Groq** (API). Saída validada (classe + justificativa em 1–3 frases em português). Troca via `LLM_BACKEND` no `.env`; threshold de confiança via `KNN_CONFIDENCE_THRESHOLD`.
 
 ## Requisitos
 
@@ -43,6 +43,10 @@ Edite `.env` e defina:
 - `KAGGLE_API_TOKEN` — token da API do Kaggle (usado pelo [kagglehub](https://github.com/Kaggle/kagglehub) para baixar o dataset). Obtenha em [Kaggle – Settings – API](https://www.kaggle.com/settings), clique em "Generate New Token" e copie o valor para o `.env`.
 
 Opcionais: `LABEL_COLUMN`, `TEXT_COLUMNS`, `KNN_K`, `KNN_CONFIDENCE_THRESHOLD`, `SAMPLE_SIZE`, `EMBEDDING_MODEL`, `JUSTIFICATION_MAX_TOKENS`. Para o LLM local: se o modelo for baixado do Hugging Face na primeira execução, defina `HF_TOKEN` (token em [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)); ou baixe o `.gguf` manualmente e defina `LLAMA_MODEL_PATH`. Opcionais: `LLAMA_N_CTX`, `LLAMA_N_GPU_LAYERS` (ex.: `-1` para Metal no Mac).
+
+**LLM modular:** é possível trocar o backend do LLM (fallback quando a confiança do KNN é baixa). No `.env`, defina `LLM_BACKEND=groq` para usar a API Groq (requer `GROQ_API_KEY`) ou `LLM_BACKEND=llama_cpp` para o modelo local (padrão). Opcional: `GROQ_MODEL` (ex.: `llama-3.3-70b-versatile`).
+
+**Threshold de confiança:** o limiar que decide entre “usar só KNN + justificativa” e “chamar o LLM para classificar e justificar” é controlado por `KNN_CONFIDENCE_THRESHOLD` no `.env` (padrão `0.45`). Valores mais altos disparam mais o LLM; `0` força 100% KNN (sem fallback).
 
 1. Baixe o dataset do Kaggle (obrigatório):
   - Crie uma conta em [Kaggle](https://www.kaggle.com) e aceite as regras do dataset [IT Service Ticket Classification](https://www.kaggle.com/datasets/adisongoh/it-service-ticket-classification-dataset).
