@@ -77,6 +77,8 @@ python app.py
 
 Abre em `http://127.0.0.1:7860`. Requer o vector store já construído (rode o notebook uma vez antes).
 
+![UI](./charts/ui.png)
+
 O notebook:
 
 1. Carrega o dataset e identifica a coluna de rótulo (e colunas de texto)
