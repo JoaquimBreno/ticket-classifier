@@ -13,6 +13,7 @@ class PipelineState(TypedDict, total=False):
     classes: list[str]
     classification_tokens: int
     justification_tokens: int
+    confidence_threshold: float
 
 
 class PipelineResult(TypedDict, total=False):

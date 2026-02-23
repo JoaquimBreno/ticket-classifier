@@ -114,7 +114,10 @@ def route_after_knn(
 ) -> Literal["generate_justification", "llm_classify_and_justify"]:
     if state.get("used_llm_for_class") is True:
         return "generate_justification"
-    if (state.get("confidence") or 0.0) >= config.KNN_CONFIDENCE_THRESHOLD:
+    threshold = state.get("confidence_threshold")
+    if threshold is None:
+        threshold = config.KNN_CONFIDENCE_THRESHOLD
+    if (state.get("confidence") or 0.0) >= threshold:
         return "generate_justification"
     return "llm_classify_and_justify"
 

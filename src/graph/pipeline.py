@@ -59,11 +59,14 @@ def run_pipeline(
     *,
     thread_id: str = "default",
     instance_id: str | None = None,
+    confidence_threshold: float | None = None,
 ) -> PipelineResult:
     run_config = {"configurable": {"thread_id": thread_id}}
     initial: PipelineState = {"ticket_text": ticket_text, "classes": classes}
     if instance_id is not None:
         initial["instance_id"] = instance_id
+    if confidence_threshold is not None:
+        initial["confidence_threshold"] = confidence_threshold
     t0 = time.perf_counter()
     final = compiled.invoke(initial, run_config)
     inference_time_sec = time.perf_counter() - t0

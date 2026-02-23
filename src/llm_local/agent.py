@@ -96,7 +96,7 @@ def agent_classify_and_justify(
         f"KNN sugeriu: classe {knn_classe!r}, confiança {knn_conf:.2f} (abaixo do limiar). Use como guia.\n\n"
         f"Categorias válidas: {classes_validas}\n\n"
         f"Classifique o ticket. Na justificativa: diga o que o KNN sugeriu e depois sua contrapartida (mesma classe ou não, e por quê), citando o ticket.\n\n"
-        f"Ticket:\n{ticket_text[:config.CLASSIFICATION_MAX_CHARS]}"
+        f"Ticket:\n{ticket_text[:config.TICKET_MAX_CHARS]}"
     )
     
     content, input_tokens, output_tokens = backend.chat_completion(
@@ -129,7 +129,7 @@ def _justify_knn(
         "Seja conciso. Só a justificativa."
     )
     user = (
-        f"Ticket:\n{ticket_text[:config.JUSTIFICATION_MAX_CHARS]}\n\n"
+        f"Ticket:\n{ticket_text[:config.TICKET_MAX_CHARS]}\n\n"
         f"Classe atribuída: {classe}. Confiança KNN: {confidence:.2f}.\n\n"
         f"Vizinhos KNN que votaram nessa classe:\n{_format_winning_voters(winning_voters)}\n\n"
         "Quais termos do ticket acima correlacionam com a classe e com os vizinhos? Justifique em português citando o texto."
