@@ -1,5 +1,4 @@
-# IT Ticket Classifier — DHAUZ Challenge
-
+# IT Ticket Classifier
 Fluxo de automação que, dado o texto de um ticket, retorna a **classe** e uma **justificativa curta** da classificação.
 
 **Saída:** `{"classe": "...", "justificativa": "..."}`
